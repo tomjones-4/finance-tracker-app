@@ -1,0 +1,11 @@
+version: "3.9"
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PLAID_CLIENT_ID=TODO-see Plaid dashboard
+      - PLAID_SECRET=TODO-secret-see Plaid dashboard
+      - SUPABASE_URL=https://xyz.supabase.co
+      - SUPABASE_KEY=TODO_service_key
