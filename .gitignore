@@ -1,1 +1,12 @@
 **/.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Environment files
+.env
+node_modules
+venv
