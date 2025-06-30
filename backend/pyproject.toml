@@ -1,0 +1,19 @@
+[project]
+name = "finance-tracker-backend"
+version = "0.1.0"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "supabase",
+    "python-dotenv",
+    "plaid-python",
+    "httpx", # Required by supabase-py and plaid-python
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["backend", "backend.*"]
+namespaces = false
