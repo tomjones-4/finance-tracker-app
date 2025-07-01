@@ -22,9 +22,11 @@ app.add_middleware(
 
 app.include_router(plaid_router, prefix="/plaid")
 
+
 @app.get("/")
 async def read_root():
     return {"message": "Welcome to the Finance Tracker API!"}
+
 
 @app.get("/test-supabase")
 async def test_supabase():
