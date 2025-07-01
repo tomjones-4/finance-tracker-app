@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabaseClient";
 import LinkButton from "./plaid/LinkButton";
 import { Session } from "@supabase/supabase-js";
@@ -6,10 +6,15 @@ import { Session } from "@supabase/supabase-js";
 const App = () => {
   const [session, setSession] = useState<Session | null>(null);
 
+  const getInitialSession = useCallback(async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    setSession(session);
+  }, []);
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
+    getInitialSession();
 
     const {
       data: { subscription },
@@ -17,8 +22,10 @@ const App = () => {
       setSession(session);
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [getInitialSession]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">

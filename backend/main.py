@@ -7,6 +7,8 @@ app = FastAPI()
 
 origins = [
     "http://localhost:5173",  # React frontend default port
+    "http://localhost:5174",  # React frontend default port
+    "http://localhost:5175",  # React frontend default port
     "http://localhost:3000",  # Another common React port
 ]
 

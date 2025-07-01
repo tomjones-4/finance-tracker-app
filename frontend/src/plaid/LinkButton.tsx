@@ -15,7 +15,8 @@ const LinkButton = () => {
         setUserId(session.user.id);
         try {
           const response = await fetch(
-            "http://localhost:8000/plaid/create_link_token",
+            // "http://localhost:8000/plaid/create_link_token",
+            "/plaid/create_link_token",
             {
               method: "POST",
               headers: {
@@ -42,7 +43,7 @@ const LinkButton = () => {
           data: { session },
         } = await supabase.auth.getSession();
         if (session) {
-          await fetch("http://localhost:8000/plaid/exchange_public_token", {
+          await fetch("/plaid/exchange_public_token", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -66,7 +67,12 @@ const LinkButton = () => {
   });
 
   return (
-    <button onClick={() => open()} disabled={!ready || !userId}>
+    <button
+      onClick={() => {
+        open();
+      }}
+      disabled={!ready || !userId}
+    >
       Connect Bank
     </button>
   );

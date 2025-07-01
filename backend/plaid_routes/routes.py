@@ -7,8 +7,12 @@ from plaid.model.transactions_sync_request import TransactionsSyncRequest
 from plaid.model.transactions_get_request import TransactionsGetRequest
 from plaid.model.transactions_get_request_options import TransactionsGetRequestOptions
 from plaid.model.accounts_get_request import AccountsGetRequest
+from plaid.model.institutions_get_by_id_request import InstitutionsGetByIdRequest
 from plaid.model.webhook_verification_key_get_request import WebhookVerificationKeyGetRequest
 from plaid.model.webhook_verification_key_get_response import WebhookVerificationKeyGetResponse
+from plaid.model.country_code import CountryCode
+from plaid.model.products import Products
+from plaid import ApiException
 from datetime import date, timedelta
 import json
 import os
@@ -38,22 +42,26 @@ async def get_current_user(request: Request):
 @router.post("/create_link_token")
 async def create_link_token(user: Any = Depends(get_current_user)):
     try:
+        print("Creating link token for user:", user.id)
         request = LinkTokenCreateRequest(
             user=LinkTokenCreateRequestUser(client_user_id=str(user.id)),
             client_name="Finance Tracker",
-            products=["auth", "transactions"],
-            country_codes=["US"],
+            products=[Products("auth"), Products("transactions")],
+            country_codes=[CountryCode("US")],
             language='en',
             redirect_uri="http://localhost:5173/oauth-redirect", # Update with your frontend redirect URI
-            link_token_create_request_webhook="http://localhost:8000/plaid/webhook" # Update with your webhook URL
+            webhook="http://localhost:8000/plaid/webhook" # Update with your webhook URL
         )
         response = client.link_token_create(request)
         return response.to_dict()
-    except plaid.ApiException as e:
+    except ApiException as e:
+        print(f"Plaid error: {e.body}")
         raise HTTPException(status_code=e.status, detail=json.loads(e.body)["display_message"] or e.reason)
 
 @router.post("/exchange_public_token")
 async def exchange_public_token(public_token_data: Dict[str, str], user: Any = Depends(get_current_user)):
+    print("Creating link token for user:", user.id)
+    print("Public token data received:", public_token_data)
     public_token = public_token_data.get("public_token")
     if not public_token:
         raise HTTPException(status_code=400, detail="Public token is required")
@@ -69,7 +77,11 @@ async def exchange_public_token(public_token_data: Dict[str, str], user: Any = D
         institution_id = item_response.item.institution_id
         institution_name = None
         if institution_id:
-            institution_response = client.institutions_get_by_id({"institution_id": institution_id})
+            institution_request = InstitutionsGetByIdRequest(
+                institution_id=institution_id,
+                country_codes=[CountryCode("US")]
+            )
+            institution_response = client.institutions_get_by_id(institution_request)
             institution_name = institution_response.institution.name
 
         # Store access_token and item_id in Supabase
@@ -91,9 +103,11 @@ async def exchange_public_token(public_token_data: Dict[str, str], user: Any = D
         else:
             raise HTTPException(status_code=500, detail="Failed to save Plaid item to database.")
 
-    except plaid.ApiException as e:
+    except ApiException as e:
+        print(f"Plaid error: {e.body}")
         raise HTTPException(status_code=e.status, detail=json.loads(e.body)["display_message"] or e.reason)
     except Exception as e:
+        print(f"An unexpected error occurred while exchanging public token: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
 
 async def sync_accounts(access_token: str, user_id: str, plaid_item_db_id: str):
@@ -116,7 +130,8 @@ async def sync_accounts(access_token: str, user_id: str, plaid_item_db_id: str):
             }
             # Upsert account data
             supabase.from_("accounts").upsert(account_data, on_conflict="plaid_item_id, account_id").execute()
-    except plaid.ApiException as e:
+    except ApiException as e:
+        print(f"Plaid error: {e.body}")
         print(f"Error syncing accounts: {json.loads(e.body)}")
     except Exception as e:
         print(f"An unexpected error occurred during account sync: {e}")
@@ -184,7 +199,8 @@ async def sync_transactions(access_token: str, user_id: str, plaid_item_db_id: s
             cursor = response.next_cursor
             has_more = response.has_more
 
-        except plaid.ApiException as e:
+        except ApiException as e:
+            print(f"Plaid error: {e.body}")
             print(f"Error syncing transactions: {json.loads(e.body)}")
             break
         except Exception as e:
@@ -250,17 +266,21 @@ async def plaid_webhook(request: Request):
         
         return {"message": f"Webhook received: {webhook_type}. No specific action taken for this code: {webhook_code}"}
 
-    except HTTPException as e:
+    except ApiException as e:
+        print(f"Plaid error: {e.body}")
+        raise HTTPException(status_code=500, detail=f"Webhook processing failed: {e}")
         raise e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Webhook processing failed: {e}")
+        print(f"An unexpected error occurred with Plaid webhook: {e}")
+        
 
 @router.get("/transactions")
 async def get_transactions(user: Any = Depends(get_current_user)):
     try:
         response = supabase.from_("transactions").select("*").eq("user_id", str(user.id)).order("date", desc=True).execute()
         return response.data
-    except Exception as e:
+    except ApiException as e:
+        print(f"Plaid error: {e.body}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch transactions: {e}")
 
 @router.get("/accounts")
@@ -268,7 +288,8 @@ async def get_accounts(user: Any = Depends(get_current_user)):
     try:
         response = supabase.from_("accounts").select("*").eq("user_id", str(user.id)).execute()
         return response.data
-    except Exception as e:
+    except ApiException as e:
+        print(f"Plaid error: {e.body}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch accounts: {e}")
 
 @router.get("/plaid_items")
@@ -276,5 +297,6 @@ async def get_plaid_items(user: Any = Depends(get_current_user)):
     try:
         response = supabase.from_("plaid_items").select("*").eq("user_id", str(user.id)).execute()
         return response.data
-    except Exception as e:
+    except ApiException as e:
+        print(f"Plaid error: {e.body}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch Plaid items: {e}")
