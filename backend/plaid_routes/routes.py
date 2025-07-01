@@ -6,7 +6,10 @@
 
 # Consider moving db methods into their own file. See Plaid Transactions tutorial for a clean way to organize this.
 
-from fastapi import APIRouter, Request, HTTPException, Depends
+# Currently most of the db calls use single(), which expects EXACTLY one row. It throws an error for zero or more than one rows.
+# To fix this, I probably need to make it so that user can't add the same account multiple times. When I look in my Supabase accounts table, I see duplicates.
+
+from fastapi import APIRouter, Request, HTTPException, Depends, Body
 from plaid_routes.client import client
 from plaid.model.link_token_create_request import LinkTokenCreateRequest
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
@@ -26,6 +29,8 @@ from plaid.model.webhook_verification_key_get_response import (
 )
 from plaid.model.country_code import CountryCode
 from plaid.model.products import Products
+from plaid.model.webhook_type import WebhookType
+from plaid.model.sandbox_item_fire_webhook_request import SandboxItemFireWebhookRequest
 from plaid import ApiException
 from datetime import date, timedelta
 import json
@@ -211,7 +216,7 @@ async def sync_transactions(access_token: str, user_id: str, plaid_item_db_id: s
                     .select("id")
                     .eq("account_id", transaction.account_id)
                     .eq("plaid_item_id", plaid_item_db_id)
-                    .single()
+                    # .single()
                     .execute()
                 )
                 account_db_id = (
@@ -240,7 +245,7 @@ async def sync_transactions(access_token: str, user_id: str, plaid_item_db_id: s
                     .select("id")
                     .eq("account_id", transaction.account_id)
                     .eq("plaid_item_id", plaid_item_db_id)
-                    .single()
+                    #  .single()
                     .execute()
                 )
                 account_db_id = (
@@ -291,6 +296,46 @@ async def sync_transactions(access_token: str, user_id: str, plaid_item_db_id: s
     print(
         f"Synced transactions: Added {len(added)}, Modified {len(modified)}, Removed {len(removed)}"
     )
+
+
+@router.post("/sandbox/fire_webhook")
+async def fire_sandbox_webhook(
+    # plaid_item_id: str = Body(..., embed=True),
+    access_token: str = Body(..., embed=True),
+    # webhook_type: str = Body("TRANSACTIONS", embed=True),
+    webhook_type: str = Body(..., embed=True),
+    webhook_code: str = Body("DEFAULT_UPDATE", embed=True),
+):
+    """
+    Triggers a Plaid sandbox webhook to generate test transactions.
+    """
+    print("Fired sandbox webhook for item. Access Token:", access_token)
+    # Get the access_token for the given plaid_item_id
+    # plaid_item_response = (
+    #     supabase.from_("plaid_items")
+    #     .select("access_token")
+    #     .eq("id", plaid_item_id)
+    #     .single()
+    #     .execute()
+    # )
+    # if not plaid_item_response.data:
+    #     raise HTTPException(status_code=404, detail="Plaid item not found")
+
+    # access_token = plaid_item_response.data["access_token"]
+
+    try:
+        request = SandboxItemFireWebhookRequest(
+            access_token=access_token,
+            webhook_type=WebhookType(webhook_type),
+            webhook_code=webhook_code,
+        )
+        client.sandbox_item_fire_webhook(request)
+        return {"message": f"Fired sandbox webhook: {webhook_code}"}
+    except ApiException as e:
+        print(f"Plaid error: {e.body}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fire sandbox webhook: {e}"
+        )
 
 
 @router.post("/plaid_webhook")
@@ -412,6 +457,8 @@ async def get_plaid_items(user: Any = Depends(get_current_user)):
             .eq("user_id", str(user.id))
             .execute()
         )
+        print("Fetched Plaid items for user:", user.id)
+        print("Response data:", response.data)
         return response.data
     except ApiException as e:
         print(f"Plaid error: {e.body}")
