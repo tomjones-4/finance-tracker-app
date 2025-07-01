@@ -1,11 +1,31 @@
+// TODO
+
+// Consider useContext hook for session management. For now I'll pass it as a prop but it'll probably be used in almost every component.
+
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabaseClient";
 import LinkButton from "./plaid/LinkButton";
 import Auth from "./components/Auth";
 import { Session } from "@supabase/supabase-js";
+import Transactions from "./components/Transactions";
+import FireSandboxWebhookButton from "./components/FireSandboxWebhookButton";
+import { PlaidItem } from "./types/supabase";
 
 const App = () => {
   const [session, setSession] = useState<Session | null>(null);
+  const [plaidItems, setPlaidItems] = useState<PlaidItem[]>([]);
+
+  useEffect(() => {
+    if (!session) return;
+    fetch("/plaid/plaid_items", {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setPlaidItems(data || []);
+        console.log("Fetched Plaid items - data:", data);
+      });
+  }, [session]);
 
   const getInitialSession = useCallback(async () => {
     const {
@@ -26,7 +46,7 @@ const App = () => {
     return () => {
       subscription?.unsubscribe();
     };
-  }, [getInitialSession]);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
@@ -43,6 +63,13 @@ const App = () => {
             Sign Out
           </button>
           <LinkButton />
+          <FireSandboxWebhookButton
+            session={session}
+            plaidItemAccessToken={
+              plaidItems.length > 0 ? plaidItems[0].access_token : ""
+            }
+          />
+          <Transactions session={session} />
         </div>
       )}
     </div>
