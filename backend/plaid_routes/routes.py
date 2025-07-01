@@ -1,5 +1,10 @@
-# TODO: Deal with this error when linking banks (from line 212):
+# TODO
+
+# Deal with this error when linking banks (from line 212):
 # An unexpected error occurred during transaction sync: Invalid type for variable 'cursor'. Required value type is str and passed type was NoneType at ['cursor']
+# Note: Above issue was fixed by only including cursor if it's present, but I think I'll need to include cursor for future transaction syncs to only get newly added/modified/deleted data
+
+# Consider moving db methods into their own file. See Plaid Transactions tutorial for a clean way to organize this.
 
 from fastapi import APIRouter, Request, HTTPException, Depends
 from plaid_routes.client import client
@@ -171,14 +176,32 @@ async def sync_transactions(access_token: str, user_id: str, plaid_item_db_id: s
     modified = []
     removed = []
     has_more = True
-    cursor = None
+
+    # Read the cursor from the DB
+    plaid_item_response = (
+        supabase.from_("plaid_items")
+        .select("transactions_cursor")
+        .eq("id", plaid_item_db_id)
+        .single()
+        .execute()
+    )
+    cursor = (
+        plaid_item_response.data["transactions_cursor"]
+        if plaid_item_response.data
+        else None
+    )
 
     while has_more:
         try:
-            request = TransactionsSyncRequest(
-                access_token=access_token,
-                cursor=cursor,
-            )
+            if cursor is not None:
+                request = TransactionsSyncRequest(
+                    access_token=access_token,
+                    cursor=cursor,
+                )
+            else:
+                request = TransactionsSyncRequest(
+                    access_token=access_token,
+                )
             response = client.transactions_sync(request)
 
             # Add new transactions
@@ -248,8 +271,14 @@ async def sync_transactions(access_token: str, user_id: str, plaid_item_db_id: s
                 ).execute()
                 removed.append(transaction)
 
+            # Update the cursor for the next request
             cursor = response.next_cursor
             has_more = response.has_more
+
+            # Save the new cursor to the DB
+            supabase.from_("plaid_items").update({"transactions_cursor": cursor}).eq(
+                "id", plaid_item_db_id
+            ).execute()
 
         except ApiException as e:
             print(f"Plaid error: {e.body}")
