@@ -71,7 +71,9 @@ async def create_link_token(user: Any = Depends(get_current_user)):
             country_codes=[CountryCode("US")],
             language="en",
             redirect_uri="http://localhost:5173/oauth-redirect",  # Update with your frontend redirect URI
-            webhook="http://localhost:8000/plaid/webhook",  # Update with your webhook URL
+            webhook="https://b860-199-188-179-107.ngrok-free.app/plaid/webhook",  # TODO - Might need to change this for PROD
+            # webhook="https://b860-199-188-179-107.ngrok-free/plaid/webhook",  # TODO - Might need to change this for PROD
+            # webhook="http://localhost:8000/plaid/webhook",  # Update with your webhook URL
         )
         response = client.link_token_create(request)
         return response.to_dict()
