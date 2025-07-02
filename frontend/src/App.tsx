@@ -2,6 +2,8 @@
 
 // Consider useContext hook for session management. For now I'll pass it as a prop but it'll probably be used in almost every component.
 
+// Implement Google Auth. See Supabase docs for how to do this.
+
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./supabaseClient";
 import LinkButton from "./plaid/LinkButton";

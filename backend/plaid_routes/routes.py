@@ -11,6 +11,8 @@
 
 # Check to see if ngrok is a viable option for receiving webhooks in production. If not, consider using a more robust solution like AWS API Gateway or a similar service.
 
+# Orchestrate all containers with Docker Compose. This will allow running the FastAPI backend, Supabase, and Plaid in a single command.
+
 from fastapi import APIRouter, Request, HTTPException, Depends, Body
 from plaid_routes.client import client
 from plaid.model.link_token_create_request import LinkTokenCreateRequest
