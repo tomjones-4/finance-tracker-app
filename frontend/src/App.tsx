@@ -10,6 +10,7 @@ import { Session } from "@supabase/supabase-js";
 import Transactions from "./components/Transactions";
 import FireSandboxWebhookButton from "./components/FireSandboxWebhookButton";
 import { PlaidItem } from "./types/supabase";
+import PlaidItemsTable from "./components/PlaidItemsTable";
 
 const App = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -62,13 +63,16 @@ const App = () => {
           >
             Sign Out
           </button>
-          <LinkButton />
-          <FireSandboxWebhookButton
+          <div>
+            <LinkButton />
+          </div>
+          {/* <FireSandboxWebhookButton
             session={session}
             plaidItemAccessToken={
               plaidItems.length > 0 ? plaidItems[0].access_token : ""
             }
-          />
+          /> */}
+          <PlaidItemsTable session={session} />
           <Transactions session={session} />
         </div>
       )}
