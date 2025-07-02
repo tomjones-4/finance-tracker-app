@@ -1,3 +1,7 @@
+// TODO
+
+// I think there are some parameters I can supply to createClient to make it more type-safe. It might allow my code to know what's in the Supabase db tables.
+
 import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 

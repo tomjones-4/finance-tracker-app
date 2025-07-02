@@ -9,6 +9,8 @@
 # Currently most of the db calls use single(), which expects EXACTLY one row. It throws an error for zero or more than one rows.
 # To fix this, I probably need to make it so that user can't add the same account multiple times. When I look in my Supabase accounts table, I see duplicates.
 
+# Check to see if ngrok is a viable option for receiving webhooks in production. If not, consider using a more robust solution like AWS API Gateway or a similar service.
+
 from fastapi import APIRouter, Request, HTTPException, Depends, Body
 from plaid_routes.client import client
 from plaid.model.link_token_create_request import LinkTokenCreateRequest
@@ -36,6 +38,11 @@ from datetime import date, timedelta
 import json
 import os
 from typing import Dict, Any
+
+# debugging imports
+from termcolor import colored
+
+# end debugging imports
 
 from supabase_client import supabase
 from config import PLAID_ENV
@@ -210,20 +217,49 @@ async def sync_transactions(access_token: str, user_id: str, plaid_item_db_id: s
                     access_token=access_token,
                 )
             response = client.transactions_sync(request)
+            print(
+                colored(
+                    "Plaid transactions_sync response:\n"
+                    + json.dumps(response.to_dict(), indent=2, default=str),
+                    "yellow",
+                ),
+            )
+
+            # print(
+            #     colored(
+            #         f"response.added: {response.added}",
+            #         "cyan",
+            #     ),
+            # )
+
+            print("type(response.added):", type(response.added))
 
             # Add new transactions
             for transaction in response.added:
+                print("adding transaction")
                 account_response = (
                     supabase.from_("accounts")
                     .select("id")
                     .eq("account_id", transaction.account_id)
                     .eq("plaid_item_id", plaid_item_db_id)
-                    # .single()
+                    .single()
                     .execute()
                 )
+                # print("account_response:", account_response)
+
+                print("getting account db id")
                 account_db_id = (
                     account_response.data["id"] if account_response.data else None
                 )
+
+                # print("account_db_id:", account_db_id)
+
+                # print(
+                #     colored(
+                #         f"Account lookup for transaction: {transaction.transaction_id}. Result: {account_response.data}",
+                #         "cyan",
+                #     ),
+                # )
 
                 if account_db_id:
                     transaction_data = {
@@ -237,8 +273,24 @@ async def sync_transactions(access_token: str, user_id: str, plaid_item_db_id: s
                         "iso_currency_code": transaction.iso_currency_code,
                         "pending": transaction.pending,
                     }
+                    print("about to insert transaction data:", transaction_data)
                     supabase.from_("transactions").insert(transaction_data).execute()
                     added.append(transaction)
+                    print("inserted transaction")
+                else:
+                    print(
+                        colored(
+                            f"Skipping transaction {transaction.transaction_id}: account not found for account_id={transaction.account_id}, plaid_item_id={plaid_item_db_id}",
+                            "red",
+                        )
+                    )
+
+            print(
+                colored(
+                    f"Added {len(added)} transactions",
+                    "green",
+                ),
+            )
 
             # Update modified transactions
             for transaction in response.modified:
@@ -247,7 +299,7 @@ async def sync_transactions(access_token: str, user_id: str, plaid_item_db_id: s
                     .select("id")
                     .eq("account_id", transaction.account_id)
                     .eq("plaid_item_id", plaid_item_db_id)
-                    #  .single()
+                    .single()
                     .execute()
                 )
                 account_db_id = (
@@ -296,7 +348,10 @@ async def sync_transactions(access_token: str, user_id: str, plaid_item_db_id: s
             break
 
     print(
-        f"Synced transactions: Added {len(added)}, Modified {len(modified)}, Removed {len(removed)}"
+        colored(
+            f"Synced transactions: Added {len(added)}, Modified {len(modified)}, Removed {len(removed)}",
+            "blue",
+        )
     )
 
 
@@ -311,7 +366,9 @@ async def fire_sandbox_webhook(
     """
     Triggers a Plaid sandbox webhook to generate test transactions.
     """
-    print("Fired sandbox webhook for item. Access Token:", access_token)
+    print(
+        colored("Fired sandbox webhook for item. Access Token:", "blue"), access_token
+    )
     # Get the access_token for the given plaid_item_id
     # plaid_item_response = (
     #     supabase.from_("plaid_items")
@@ -340,8 +397,8 @@ async def fire_sandbox_webhook(
         )
 
 
-@router.post("/plaid_webhook")
-async def plaid_webhook(request: Request):
+@router.post("/webhook")
+async def webhook(request: Request):
     try:
         # Verify webhook signature (important for production)
         # For development, you might skip this or use a simplified check
@@ -355,7 +412,10 @@ async def plaid_webhook(request: Request):
         item_id = webhook_data.get("item_id")
 
         print(
-            f"Received Plaid webhook: Type={webhook_type}, Code={webhook_code}, Item ID={item_id}"
+            colored(
+                f"Received Plaid webhook: Type={webhook_type}, Code={webhook_code}, Item ID={item_id}",
+                "blue",
+            )
         )
 
         # Retrieve access token and user_id from your database using item_id
